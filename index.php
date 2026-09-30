@@ -1,0 +1,834 @@
+<?php
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/auth.php';
+
+$usuarioLogado = usuarioEstaLogado();
+
+$usuario = null;
+
+if ($usuarioLogado) {
+    $pdo = getConexao();
+
+    $stmt = $pdo->prepare(
+        'SELECT * FROM usuarios WHERE id = :id LIMIT 1'
+    );
+
+    $stmt->execute([
+        'id' => $_SESSION['usuario_id']
+    ]);
+
+    $usuario = $stmt->fetch();
+}
+
+$usuarioSessao = $usuario ? [
+    'id' => (int) $usuario['id'],
+    'nome' => $usuario['nome'],
+    'email' => $usuario['email'],
+    'tipo' => $usuario['tipo'],
+] : null;
+
+/* BUSCAR PRODUTOS DO BANCO */
+
+$pdo = getConexao();
+
+$stmt = $pdo->query(
+    "SELECT * FROM produtos
+     WHERE status = 'ativo'
+     ORDER BY criado_em DESC"
+);
+
+$produtos = $stmt->fetchAll();
+
+?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lume Pet</title>
+    <link rel="icon" href="css/imagem css/imgicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=pets" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding-top: 80px;
+            background: #f4f4f4;
+            font-family: Arial, sans-serif;
+        }
+
+        .whatsapp-float {
+            position: fixed;
+            width: 60px;
+            height: 60px;
+            bottom: 20px;
+            right: 20px;
+            background-color: #25d366;
+            color: #fff;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 35px;
+            text-decoration: none;
+            box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+            transition: 0.3s;
+        }
+
+        .whatsapp-float:hover {
+            background-color: #1ebe5d;
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- cabeçalho/menu -->
+   <header class="header">
+    <div class="header-mobile-esquerda">
+        <button class="menu-hamburguer" id="menuHamburguer" onclick="toggleMenu()" aria-label="Abrir menu">
+            <span></span><span></span><span></span>
+        </button>
+    <div class="usuario-mobile-wrap">
+        <a href="#" class="usuario-icon-mobile" onclick="usuarioClick(event)" aria-label="Entrar/Conta">
+            <i class="fa-regular fa-user"></i>
+        </a>
+        <div class="usuario-dropdown" id="usuarioDropdownMobile"></div>
+    </div>
+    </div>
+
+    <div class="logo">
+        <a href="#inicio">
+            <img src="css/imagem css/marcad.png" alt="LumePet">
+        </a>
+    </div>
+
+    <div class="header-nav-wrap">
+        <nav id="navMenu">
+            <ul>
+                <li><a href="#inicio">Início</a></li>
+                <li><a href="#loja">Produtos</a></li>
+                <li><a href="#adote">Adote</a></li>
+                <li><a href="#doacao">Doação</a></li>
+                <li><a href="#sobre">Sobre</a></li>
+                <li><a href="#avaliacao">Avaliações</a></li>
+                <li><a href="#contato">Contato</a></li>
+                <li class="usuario-item">
+                    <a href="#" class="usuario-icon" onclick="usuarioClick(event)" id="usuarioLink">
+                        <span id="usuarioNome">Entrar</span>
+                    </a>
+                    <div class="usuario-dropdown" id="usuarioDropdownDesktop"></div>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="header-direita">
+            <a href="#" class="carrinho-icon" onclick="toggleCarrinho(event)">
+                🛒 <span class="carrinho-count">0</span>
+            </a>
+        </div>
+    </div>
+</header>
+
+    <!-- MODAL DE LOGIN / CADASTRO -->
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-modal">
+            <div class="login-header">
+                <h3 id="loginTitulo">Entrar</h3>
+                <button onclick="fecharLogin()">✕</button>
+            </div>
+
+            <div class="login-abas">
+                <button class="aba-btn ativo" id="aba-login" onclick="mudarAba('login')">Entrar</button>
+                <button class="aba-btn" id="aba-cadastro" onclick="mudarAba('cadastro')">Cadastrar</button>
+            </div>
+
+            <div class="login-form" id="form-login">
+                <div class="campo-grupo">
+                    <label>E-mail</label>
+                    <input type="email" id="login-email" placeholder="seu@email.com">
+                </div>
+                <div class="campo-grupo">
+                    <label>Senha</label>
+                    <input type="password" id="login-senha" placeholder="Sua senha">
+                </div>
+                  <a href="recuperar.php" class="esqueci-senha" onclick="esqueciSenha()">Esqueci minha senha</a>
+
+                <span class="erro" id="erro-login"></span>
+                <button class="btn-confirmar-login" onclick="fazerLogin()">Entrar</button>
+            </div>
+            
+
+            <div class="login-form" id="form-cadastro" style="display:none">
+                <div class="campo-grupo">
+                    <label>Nome</label>
+                    <input type="text" id="cad-nome" placeholder="Seu nome completo">
+                </div>
+                <div class="campo-grupo">
+                    <label>E-mail</label>
+                    <input type="email" id="cad-email" placeholder="seu@email.com">
+                </div>
+                <div class="campo-grupo">
+                    <label>Senha</label>
+                    <input type="password" id="cad-senha" placeholder="Crie uma senha (mín. 6 caracteres)" minlength="6">
+                </div>
+                <div class="campo-grupo">
+                    <label>Confirmar senha</label>
+                    <input type="password" id="cad-senha2" placeholder="Repita a senha">
+                </div>
+                <div class="politica-privacidade">
+                    <input type="checkbox" id="cad-aceito" name="cad-aceito"required>
+                    <label for="cad-aceito">
+                    Li e concordo com a <a href="politica.php" target="_blank">Política de Privacidade</a>
+                </label>
+                </div>
+                <span class="erro" id="erro-cadastro"></span>
+                <button class="btn-confirmar-login" onclick="fazerCadastro()">Criar conta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PEDIDOS -->
+     <div class="pedidos-overlay" id="pedidosOverlay">
+        <div class="pedidos-modal">
+            <div class="pedidos-header">
+                <h3 id="pedidosTitulo">Minhas Compras</h3>
+                <button onclick="fecharPedidos()">✕</button>
+            </div>
+            <div class="pedidos-lista" id="pedidosLista"></div>
+        </div>
+     </div>
+
+     <!-- MINHA CONTA -->
+      <div class="conta-overlay" id="contaOverlay">
+        <div class="conta-modal">
+            <div class="conta-header">
+                <h3>Minha Conta</h3>
+                <button onclick="fecharConta()">✕</button>
+            </div>
+
+            <div class="conta-secao">
+                <label>Nome</label>
+                <div class="conta-linha">
+                    <input type="text" id="conta-nome" placeholder="Seu nome">
+                    <button onclick="salvarNome()">Salvar</button>
+                </div>
+                <span class="erro" id="erro-conta-nome"></span>
+            </div>
+
+            <div class="conta-secao">
+                <label>E-mail</label>
+                <div class="conta-linha">
+                    <input type="email" id="conta-email" placeholder="seu@email.com">
+                    <button onclick="salvarEmail()">Salvar</button>
+                </div>
+                <span class="erro" id="erro-conta-email"></span>
+            </div>
+
+            <div class="conta-secao">
+                <label>Alterar senha</label>
+                <input type="password" id="conta-senha-atual" placeholder="Senha atual">
+                <input type="password" id="conta-senha-nova" placeholder="Nova senha (mín. 6 caracteres)">
+                <input type="password" id="conta-senha-nova2" placeholder="Confirmar nova senha">
+                <button class="btn-conta-senha" onclick="salvarSenha()">Alterar senha</button>
+                <span class="erro" id="erro-conta-senha"></span>
+            </div>
+
+            <div class="conta-secao">
+                <a href="politica.php" target="_blank">Política de Privacidade</a>
+            </div>
+
+            <div class="conta-secao conta-perigo">
+                <button class="btn-excluir-conta" onclick="excluirConta()">Excluir minha conta</button>
+            </div>
+
+        </div>
+      </div>
+
+    <!-- PAINEL DO CARRINHO -->
+    <div class="carrinho-painel" id="carrinhoPainel">
+        <div class="carrinho-header">
+            <h3>🛒 Seu Carrinho</h3>
+            <button class="carrinho-fechar" onclick="toggleCarrinho(event)">✕</button>
+        </div>
+
+        <ul id="carrinho-lista">
+            <li class="carrinho-vazio">Nenhum item ainda.</li>
+        </ul>
+
+        <div class="carrinho-rodape">
+            <p class="carrinho-total">Total: <strong id="carrinho-valor">R$ 0,00</strong></p>
+            <button class="btn-esvaziar" onclick="esvaziarCarrinho()">Esvaziar</button>
+            <button class="btn-pagar" onclick="abrirPagamento()">Finalizar compra</button>
+        </div>
+    </div>
+
+    <!-- MODAL DE PAGAMENTO -->
+    <div class="pagamento-overlay" id="pagamentoOverlay">
+        <div class="pagamento-modal">
+            <div class="pagamento-header">
+                <h3>Finalizar Compra</h3>
+                <button onclick="fecharPagamento()">✕</button>
+            </div>
+
+            <div class="pagamento-resumo" id="pagamentoResumo"></div>
+
+            <div class="pagamento-cep">
+                <p><strong>📍 Endereço de entrega</strong></p>
+                <div class="cep-linha">
+                    <input type="text" id="cepInput" placeholder="Digite seu CEP" maxlength="9" oninput="mascaraCep(this)">
+                    <button type="button" onclick="calcularFrete()">Calcular</button>
+                </div>
+                <div id="cepResultado"></div>
+
+                <div class="endereco-detalhes" id="enderecoDetalhes" style="display:none">
+                    <div class="endereco-linha">
+                        <input type="text" id="numeroCasa" placeholder="Número *">
+                        <input type="text" id="complemento" placeholder="Complemento (opcional)">
+                    </div>
+                </div>
+            </div>
+
+            <div class="pagamento-cupom">
+                <p><strong>🎟️ Cupom de desconto</strong></p>
+                <div class="cupom-linha">
+                    <input type="text" id="cupomInput" placeholder="Digite seu cupom">
+                    <button type="button" onclick="aplicarCupom()">Aplicar</button>
+                </div>
+                <div id="cupomResultado"></div>
+            </div>
+
+            <div class="pagamento-metodos">
+                <p><strong>Forma de pagamento:</strong></p>
+                <label><input type="radio" name="pagamento" value="pix" checked onchange="atualizarMetodoPagamento()"> PIX</label>
+                <label><input type="radio" name="pagamento" value="cartao" onchange="atualizarMetodoPagamento()"> Cartão (Crédito ou Débito)</label>
+            </div>
+
+            <div id="pagamento-extra"></div>
+
+            <button class="btn-confirmar" onclick="confirmarPedido()">✅ Confirmar pedido</button>
+        </div>
+    </div>
+
+    <!-- carrossel de imagens -->
+    <section class="carrossel" id="inicio">
+        <div class="slides" id="slides">
+            <div class="slide">
+                <div class="slide-bg"></div>
+                <a href="#loja">
+                    <img src="css/imagem css/banner1.jpeg" alt="banner 1" class="slide-bg">
+                </a>
+            </div>
+            <div class="slide">
+                <div class="slide-bg"></div>
+                <a href="#loja">
+                    <img src="css/imagem css/banner2.jpeg" alt="banner 2" class="slide-bg">
+                </a>
+            </div>
+        </div>
+
+        <button class="nav-btn nav-prev" id="prev"><span class="material-symbols-outlined">pets</span></button>
+        <button class="nav-btn nav-next" id="next"><span class="material-symbols-outlined">pets</span></button>
+
+        <div class="dots" id="dots"></div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress"></div>
+        </div>
+    </section>
+
+    <!-- serviço -->
+    <section class="servico">
+        <h1>Mais que um pet shop, uma missão!</h1>
+        <div class="servico-wrapper">
+
+        <div class="servico-info">
+        <h2>Conheça as Ongs parceiras...</h2>
+        <p>A Lume Pet nasceu para unir amor e responsabilidade, oferecendo produtos de qualidade e promovendo o bem-estar animal. Junte-se a nós nessa jornada de cuidado e carinho pelos nossos amigos de quatro patas.</p>
+
+        <div class="botao">
+            <a href="#doacao"><button class="btn-primary">Fazer Doação</button></a>
+            <a href="#adote"><button class="btn-seg">Adotar um Pet</button></a>
+        </div>
+        </div>
+
+        <!-- Imagens ongs -->
+         <div class="servico-carrossel" id="servicoCarrossel">
+            <div class="servico-slide active">
+                <img src="css/imagem css/viralataviraamg.jpeg" alt="Ong 1">
+                <a href="ong.html" class="ong-tag">Saiba mais</a>
+            </div>
+            <div class="servico-slide" id="servicoong2">
+                <img src="css/imagem css/caramelhoong.jpg" alt="ong 2">
+                <a href="ong.html" class="ong-tag">Saiba mais</a>
+            </div>
+            <div class="servico-slide" id="servicoong3">
+                <img src="css/imagem css/salvagato.jpg" alt="ong 3">
+                <a href="ong.html" class="ong-tag">Saiba mais</a>
+            </div>
+            <div class="servico-slide" id="servicoong4">
+                <img src="css/imagem css/viralata10.jpg" alt="ong 4">
+                <a href="ong.html" class="ong-tag">Saiba Mais</a>
+            </div>
+            
+            <div class="servico-dots" id="servicoDots"></div>
+         </div>   
+
+         </div>
+    </section>
+
+    <!-- loja -->
+    <section class="loja" id="loja">
+        <h2>Nossos produtos</h2>
+        <p>Encontre produtos de qualidade das melhores marcas, selecionados especialmente para cuidar do bem-estar e da felicidade do seu pet.</p>
+
+        <div class="loja-pesquisa">
+            <input type="text" id="campoPesquisa" placeholder="Digite o que seu pet precisa..." oninput="filtrarProdutos()">
+        </div>
+
+        <div class="loja-categorias">
+            <button class="categoria-btn ativo" onclick="filtrarCategoria('geral', event)">Geral</button>
+            <button class="categoria-btn" onclick="filtrarCategoria('higiene', event)">Higiene</button>
+            <button class="categoria-btn" onclick="filtrarCategoria('alimento', event)">Alimentos</button>
+            <button class="categoria-btn" onclick="filtrarCategoria('brinquedo', event)">Brinquedos</button>
+            <button class="categoria-btn" onclick="filtrarCategoria('conforto', event)">Conforto</button>
+        </div>
+
+        <div class="loja-grade" id="lojaGrade">
+
+    <div class="loja-vazio" id="lojaVazio" style="display: none;">
+        <h3>Nenhum produto encontrado</h3>
+        <p>Não encontramos itens com essa busca. Tente outra palavra ou confira as categorias.</p>
+        <div class="loja-sugestoes">
+            <span>Que tal ajudar uma instituição?</span>
+            <p>Ao fazer uma doação no site da Lume Pet o valor é destinado 100% à insituição parceira!</p>
+        </div>
+    </div>
+
+    <?php foreach ($produtos as $produto): ?>
+
+        <?php
+            $categoria = strtolower(trim($produto['categoria'] ?? ''));
+            $nome = $produto['nome'] ?? '';
+            $descricao = $produto['descricao'] ?? '';
+            $preco = (float) ($produto['preco'] ?? 0);
+            $imagem = $produto['imagem'] ?? '';
+
+            $arquivoImagem = __DIR__ . '/uploads/produtos/' . basename($imagem);
+            if ($imagem !== '' && is_file($arquivoImagem)) {
+                $caminhoImagem = 'uploads/produtos/' . basename($imagem);
+            } else {
+                $categoriaImagem = strtolower($categoria);
+                $imagemFallback = str_contains($categoriaImagem, 'higiene')
+                    ? 'kit higiene.jpg'
+                    : (str_contains($categoriaImagem, 'brinquedo')
+                        ? 'bolinhapet.jpg'
+                        : (str_contains($categoriaImagem, 'conforto')
+                            ? 'camapet.jpg'
+                            : (str_contains($categoriaImagem, 'comida') || str_contains($categoriaImagem, 'alimento') || str_contains($categoriaImagem, 'ração') || str_contains($categoriaImagem, 'racao')
+                                ? 'raçãopremierspitz.jpg'
+                                : 'marcad.png')));
+                $caminhoImagem = 'css/imagem css/' . $imagemFallback;
+            }
+
+            $nomeJs = json_encode(
+                $nome,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            );
+        ?>
+
+        <div
+            class="produto-card"
+            data-id="<?= (int) $produto['id'] ?>"
+            data-preco="<?= htmlspecialchars((string) $preco, ENT_QUOTES, 'UTF-8') ?>"
+            data-categoria="<?= htmlspecialchars($categoria, ENT_QUOTES, 'UTF-8') ?>"
+            data-nome="<?= htmlspecialchars(strtolower($nome), ENT_QUOTES, 'UTF-8') ?>"
+        >
+
+            <div class="produto-img">
+                <img
+                    src="<?= htmlspecialchars($caminhoImagem, ENT_QUOTES, 'UTF-8') ?>"
+                    alt="<?= htmlspecialchars($nome, ENT_QUOTES, 'UTF-8') ?>"
+                >
+            </div>
+
+            <h3>
+                <?= htmlspecialchars($nome, ENT_QUOTES, 'UTF-8') ?>
+            </h3>
+
+            <p>
+                <?= htmlspecialchars($descricao, ENT_QUOTES, 'UTF-8') ?>
+            </p>
+
+            <span class="produto-preco">
+                R$ <?= number_format($preco, 2, ',', '.') ?>
+            </span>
+
+            <button
+                onclick="adicionarAoCarrinho(
+    <?= (int) $produto['id'] ?>,
+    <?= htmlspecialchars($nomeJs, ENT_QUOTES, 'UTF-8') ?>,
+    <?= json_encode($preco) ?>
+)"
+            >
+                Adicionar ao carrinho
+            </button>
+
+        </div>
+
+    <?php endforeach; ?>
+
+</div>
+
+    <!-- parte de adoção -->
+    <section class="adote" id="adote">
+        <div class="adote-wrapper">
+
+            <div class="adote-info">
+                <h2>Adote um Pet!</h2>
+                <p>Adotar um animal é muito mais do que levar um novo companheiro para casa. É oferecer uma segunda chance a um animal que precisa de amor, cuidado e um lar. Ao escolher a adoção em vez da compra, você combate o abandono e ajuda a transformar a vida de um animalzinho.</p>
+
+                <h3>Formulário de Adoção</h3>
+                <p>Preencha o formulário abaixo para iniciar o processo de adoção. Estamos ansiosos para ajudá-lo a encontrar o companheiro perfeito!</p>
+                <button onclick="window.open('https://docs.google.com/forms/d/19jwE_GqqetJgKmBXx1GyW-G6J0R0P3yBoZaWcABsxVQ/viewform?ts=6a5eda39&edit_requested=true', '_blank')">Responda o nosso formulário</button>
+            </div>
+
+            <div class="adote-carrossel" id="adoteCarrossel">
+
+                                 <div class="adote-slide active">
+                    <img src="css/imagem css/GATA CRISTAL.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Cristal</span>
+                </div>
+
+                <div class="adote-slide">
+                    <img src="css/imagem css/CACHORRA CRISTAL E MAYA.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Cristal e Maya</span>
+                </div>
+
+                <div class="adote-slide">
+                    <img src="css/imagem css/CACHORRO RAFA.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Rapha</span>
+                </div>
+
+                <div class="adote-slide">
+                    <img src="css/imagem css/CACHORRA JUJUBA.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Jujuba</span>
+                </div>
+
+                <div class="adote-slide">
+                    <img src="css/imagem css/CACHORRA BUBBALOO.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Bubbaloo</span>
+                </div>
+
+                <div class="adote-slide">
+                    <img src="css/imagem css/CACHORRO JHONNY.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Jhonny</span>
+                </div>
+
+                <div class="adote-slide">
+                    <img src="css/imagem css/CACHORRA KIARA.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Kiara</span>
+                </div>
+
+                <div class="adote-slide">
+                    <img src="css/imagem css/GATO THEO.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Theo</span>
+                </div>
+
+                <div class="adote-slide">
+                    <img src="css/imagem css/CACHORRO TITO.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Tito</span>
+                </div>
+
+                 <div class="adote-slide">
+                    <img src="css/imagem css/GATAS MÍSTICA E SELENE.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Mística e Selene</span>
+                </div>
+
+                 <div class="adote-slide">
+                    <img src="css/imagem css/CACHORRA MELZINHA2.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Melzinha</span>
+                </div>
+
+                <div class="adote-slide">
+                    <img src="css/imagem css/GATA PITTY.jpeg" alt="Pet Adotado">
+                    <span class="adote-tag">Pitty</span>
+                </div>
+
+                <div class="adote-dots" id="adoteDots"></div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- doação -->
+    <section class="doacao" id="doacao">
+        <h2>Faça uma Doação</h2>
+
+        <div class="doacao-wrapper">
+
+            <div class="doacao-info">
+                <img src="css/imagem css/dog.jpg" alt="Ajudando animais" class="doacao-img">
+                <h3>Sua doação faz a diferença!</h3>
+                <p>Cada contribuição ajuda animais abandonados a terem uma segunda chance. Com o seu apoio, conseguimos fornecer alimentação, cuidados veterinários e um lar temporário cheio de amor.</p>
+                <p>Junte-se a nós e transforme vidas — uma patinha de cada vez.</p>
+            </div>
+
+            <div class="doacao-form">
+                <h3>Quero doar</h3>
+
+                <div class="campo-grupo">
+                    <label>Nome <span class="opcional">(opcional)</span></label>
+                    <input type="text" id="doacao-nome" placeholder="Seu nome">
+                </div>
+
+                <div class="campo-grupo">
+                    <label>E-mail <span class="obrigatorio">*</span></label>
+                    <input type="email" id="doacao-email" placeholder="seu@email.com">
+                    <span class="erro" id="erro-email"></span>
+                </div>
+
+                <div class="campo-grupo">
+                    <label>Valor da doação <span class="obrigatorio">*</span></label>
+                    <div class="valores-rapidos">
+                        <button type="button" class="btn-valor" onclick="selecionarValor(10, event)">R$ 10</button>
+                        <button type="button" class="btn-valor" onclick="selecionarValor(25, event)">R$ 25</button>
+                        <button type="button" class="btn-valor" onclick="selecionarValor(50, event)">R$ 50</button>
+                        <button type="button" class="btn-valor" onclick="selecionarValor(100, event)">R$ 100</button>
+                    </div>
+                    <input type="number" id="doacao-valor" placeholder="Ou digite outro valor (R$)" min="1" oninput="limparBotoesValor()">
+                    <span class="erro" id="erro-valor"></span>
+                </div>
+
+                <button class="btn-doar" onclick="abrirPagamentoDoacao()">Prosseguir com o pagamento</button>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- MODAL PAGAMENTO DOAÇÃO -->
+    <div class="doacao-overlay" id="doacaoOverlay">
+        <div class="doacao-modal">
+
+            <div class="doacao-modal-header">
+                <h3>Forma de pagamento</h3>
+                <button onclick="fecharPagamentoDoacao()">✕</button>
+            </div>
+
+            <div class="doacao-resumo" id="doacaoResumo"></div>
+
+            <div class="doacao-metodos">
+                <button class="btn-metodo ativo" id="btn-pix" onclick="selecionarMetodo('pix')">PIX</button>
+                <button class="btn-metodo" id="btn-credito" onclick="selecionarMetodo('credito')">Cartão de Crédito</button>
+                <button class="btn-metodo" id="btn-debito" onclick="selecionarMetodo('debito')">Cartão de Débito</button>
+            </div>
+
+            <div class="metodo-detalhe" id="detalhe-pix">
+                <p>Escaneie o QR Code ou copie a chave PIX abaixo:</p>
+                <div class="pix-qr"></div>
+                <input type="text" value="lumepet@pix.com.br" readonly onclick="this.select()">
+                <small>Clique na chave para selecionar e copiar</small>
+            </div>
+
+            <div class="metodo-detalhe" id="detalhe-cartao" style="display:none">
+                <input type="text" placeholder="Número do cartão" maxlength="19" oninput="mascaraCartao(this)">
+                <input type="text" placeholder="Nome no cartão">
+                <div class="cartao-linha">
+                    <input type="text" placeholder="Validade (MM/AA)" maxlength="5" oninput="mascaraValidade(this)">
+                    <input type="text" placeholder="CVV" maxlength="3">
+                </div>
+            </div>
+
+            <button class="btn-confirmar-doacao" onclick="confirmarDoacao()">✅ Confirmar doação</button>
+
+        </div>
+    </div>
+
+    <!-- PÁGINA DE PRODUTO -->
+    <section class="produto-pagina" id="produtoPagina">
+        <a href="#loja">
+            <button class="produto-voltar" onclick="fecharProduto()">← Voltar para a loja</button>
+        </a>
+
+        <div class="produto-detalhe">
+            <div class="produto-detalhe-img">
+                <img id="pd-img" src="" alt="">
+            </div>
+
+            <div class="produto-detalhe-info">
+                <h2 id="pd-nome"></h2>
+                <p id="pd-desc" class="pd-descricao"></p>
+                <span class="pd-preco" id="pd-preco"></span>
+
+                <div class="pd-quantidade">
+                    <label>Quantidade:</label>
+                    <div class="qtd-controle">
+                        <button onclick="alterarQtdProduto(-1)">−</button>
+                        <span id="pd-qtd">1</span>
+                        <button onclick="alterarQtdProduto(1)">+</button>
+                    </div>
+                </div>
+
+                <button class="pd-add-carrinho" onclick="adicionarProdutoDaPagina()">Adicionar ao carrinho</button>
+            </div>
+        </div>
+
+        <div class="pd-avaliacoes">
+            <h3>Avaliações</h3>
+            <div class="pd-media" id="pd-media"></div>
+            <div class="pd-lista-avaliacoes" id="pd-lista-avaliacoes"></div>
+            <div class="pd-nova-avaliacao" id="pd-nova-avaliacao"></div>
+        </div>
+    </section>
+
+    <section class="sobre" id="sobre">
+        <h2>Sobre Nós</h2>
+
+        <div class="sobre-wrapper">
+
+            <div class="sobre-img">
+                <img src="css/imagem css/exemploftong.jpeg" alt="Lume Pet">
+            </div>
+
+            <div class="sobre-texto">
+                <h3>Nossa história!</h3>
+                <p>A Lume Pet foi criada com o propósito de ser mais do que um simples pet shop. Nossa missão é promover e conscientizar a importância do cuidado e bem-estar animal.</p>
+                <p>Além de oferecer produtos de alta qualidade para seus pets, buscamos ser um ponto de apoio para aqueles que desejam adotar e cuidar de um novo amiguinho de quatro patas.</p>
+                <p>Acreditamos que cada animal merece amor, cuidado e um lar. Estamos aqui para inspirar a população a fazer a diferença — seja através de adoções, doações ou compartilhando conhecimento sobre o bem-estar animal.</p>
+                <p>Junte-se a nós nessa jornada de amor e responsabilidade, e vamos juntos construir um mundo melhor para nossos amigos peludos!</p>
+            </div>
+
+        </div>
+    </section>
+
+    <section class="avaliacao" id="avaliacao">
+        <h2>Avaliações</h2>
+        <p>Feedbacks que ilumina nossa jornada!</p>
+
+        <div class="container-card">
+
+            <div class="card">
+                <p>"Meu cachorro simplesmente ama a comida da Lume Pet! É feita com ingredientes naturais e dá pra ver a diferença na energia e na saúde dele. Saber que é uma receita própria, pensada com carinho, me deixa muito mais confiante."</p>
+                <strong>Luiza Souza</strong>
+                <span>Tutora do "Thor"</span>
+            </div>
+
+            <div class="card">
+                <p>"O kit de higiene da Lume Pet é incrível! Shampoo suave, escova prática e tudo com um cheirinho agradável. Meu pet fica limpo e feliz, e eu sinto que estou cuidando dele com produtos seguros e de confiança."</p>
+                <strong>Yuri Alberto</strong>
+                <span>Tutor da "Mel"</span>
+            </div>
+
+            <div class="card">
+                <p>"Meu gato é exigente, mas a ração natural da Lume Pet conquistou ele de primeira! Ingredientes frescos e balanceados deixaram o pelo mais macio e brilhante. É bom saber que ofereço algo saudável e feito com carinho."</p>
+                <strong>Ana Paula Braga</strong>
+                <span>Tutora da "Sol"</span>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- CONTATO -->
+<section class="contato" id="contato">
+    <h1>Fale conosco</h1>
+    <h3 class="contato-sub">Estamos aqui para ajudar! Envie uma mensagem e nossa equipe responderá o mais breve possível.</h3>
+
+    <div class="contato-wrapper">
+
+        <!-- FORMULÁRIO à esquerda -->
+        <div class="contato-form">
+            <h3>Pronto para tirar sua dúvida?</h3>
+            <p>Preencha o formulário e entraremos em contato com você.</p>
+
+            <div class="campo-grupo">
+                <label>Nome completo <span class="obrigatorio">*</span></label>
+                <input type="text" id="contato-nome" placeholder="Seu nome completo">
+            </div>
+
+            <div class="campo-grupo">
+                <label>E-mail <span class="opcional">(opcional)</span></label>
+                <input type="email" id="contato-email" placeholder="seu@email.com">
+            </div>
+
+            <div class="campo-grupo">
+                <label>Celular / WhatsApp <span class="obrigatorio">*</span></label>
+                <input type="text" id="contato-telefone" placeholder="(11) 91234-5678" maxlength="15" oninput="mascaraTelefoneContato(this)">
+            </div>
+
+            <div class="campo-grupo">
+                <label>Assunto de interesse</label>
+                <select id="contato-assunto">
+                    <option value="">Selecione...</option>
+                    <option value="Produtos">Produtos</option>
+                    <option value="Adoção">Adoção</option>
+                    <option value="Doação">Doação</option>
+                    <option value="Parceria com ONG">Parceria com ONG</option>
+                    <option value="Outro assunto">Outro assunto</option>
+                </select>
+            </div>
+
+            <div class="campo-grupo">
+                <label>Mensagem <span class="opcional">(opcional)</span></label>
+                <textarea id="contato-mensagem" placeholder="Conte um pouco sobre o que você precisa..."></textarea>
+            </div>
+
+            <span class="erro" id="erro-contato"></span>
+
+            <button class="btn-contato" onclick="enviarContato()">
+                Enviar
+            </button>
+        </div>
+
+        <!-- CANAIS à direita -->
+        <div class="contato-canais">
+
+            <div class="contato-card">
+                <div class="contato-icone"><i class="fa-solid fa-phone"></i></div>
+                <div>
+                    <h3>Telefone</h3>
+                    <a href="tel:+551140028922">(11) 4002-8922</a>
+                </div>
+            </div>
+
+            <div class="contato-card">
+                <div class="contato-icone"><i class="fa-brands fa-whatsapp"></i></div>
+                <div>
+                    <h3>WhatsApp</h3>
+                    <a href="https://wa.me/5511999999999" target="_blank">(11) 99999-9999</a>
+                    <span class="contato-obs">Clique para conversar</span>
+                </div>
+            </div>
+
+            <div class="contato-card">
+                <div class="contato-icone"><i class="fa-solid fa-envelope"></i></div>
+                <div>
+                    <h3>E-mail</h3>
+                    <a href="mailto:contato@lumepet.com.br">contato@lumepet.com.br</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+    <footer class="footer">
+        <p>&copy; 2026 LumePet. Todos os direitos reservados.</p>
+    </footer>
+
+    <!-- Botao do WhatsApp -->
+    <a href="https://wa.me/5511999999999?text=Olá%20gostaria%20de%20mais%20informações"
+        class="whatsapp-float"
+        target="_blank"
+        aria-label="Conversar no WhatsApp">
+        <i class="fab fa-whatsapp"></i>
+    </a>
+
+    <!-- Toast de notificação -->
+<div class="toast-container" id="toastContainer"></div>
+
+    <script>window.usuarioSessao = <?= json_encode($usuarioSessao, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+    <script src="js/script.js"></script>
+</body>
+</html>
+
+<!---->
